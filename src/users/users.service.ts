@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateUserDto, UpdateUserDto } from './dto/users.dto';
+import { CreateUserDto, UpdateUserDto, ChangePasswordDto } from './dto/users.dto';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -113,6 +113,14 @@ export class UsersService {
     });
 
     return updatedUser;
+  }
+
+  async changePassword(id: string, dto: ChangePasswordDto) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, await bcrypt.genSalt());
+    await this.prisma.user.update({ where: { id }, data: { passwordHash } });
   }
 
   async remove(id: string) {

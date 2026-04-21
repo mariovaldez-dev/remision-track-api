@@ -22,6 +22,12 @@ export class CreateUserDto {
   telefono?: string;
 }
 
+export class ChangePasswordDto {
+  @IsNotEmpty()
+  @MinLength(6)
+  newPassword: string;
+}
+
 export class UpdateUserDto {
   @IsOptional()
   nombre?: string;

@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, HttpStatus } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { CreateUserDto, UpdateUserDto } from './dto/users.dto';
+import { CreateUserDto, UpdateUserDto, ChangePasswordDto } from './dto/users.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -37,6 +37,13 @@ export class UsersController {
   async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     const data = await this.usersService.update(id, updateUserDto);
     return { statusCode: HttpStatus.OK, message: 'Usuario actualizado', data };
+  }
+
+  @Patch(':id/password')
+  @Roles(Rol.SUPER_ADMIN, Rol.ADMIN)
+  async changePassword(@Param('id') id: string, @Body() dto: ChangePasswordDto) {
+    await this.usersService.changePassword(id, dto);
+    return { statusCode: HttpStatus.OK, message: 'Contraseña actualizada' };
   }
 
   @Delete(':id')
