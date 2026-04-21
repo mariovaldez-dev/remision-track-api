@@ -1,0 +1,272 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Rol {
+  SUPER_ADMIN
+  ADMIN
+  OPERADOR
+  CONTADOR
+  VISUALIZADOR
+  CHOFER
+}
+
+enum UnidadMedida {
+  KG
+  TONELADA
+  PIEZA
+  CAJA
+  COSTAL
+  LITRO
+}
+
+enum EstadoPago {
+  PENDIENTE
+  PARCIAL
+  PAGADO
+  CANCELADO
+  VENCIDO
+  FACTURADO
+}
+
+enum FormaPago {
+  EFECTIVO
+  TRANSFERENCIA
+  CHEQUE
+  TARJETA
+  OTRO
+}
+
+enum EstatusFactura {
+  VIGENTE
+  CANCELADA
+}
+
+enum EstadoCorte {
+  ABIERTO
+  CERRADO
+}
+
+enum AccionAudit {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  EXPORT
+}
+
+model User {
+  id             String    @id @default(uuid()) @db.Uuid
+  nombre         String    @db.VarChar(100)
+  apellido       String    @db.VarChar(100)
+  email          String    @unique @db.VarChar(150)
+  passwordHash   String    @map("password_hash") @db.VarChar
+  rol            Rol
+  activo         Boolean   @default(true)
+  telefono       String?   @db.VarChar(20)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  lastLoginAt    DateTime? @map("last_login_at")
+
+  clientesCreados Cliente[] @relation("ClienteCreadoPor")
+  notasEntregadas NotaDeRemision[] @relation("NotaEntregadaPor")
+  notasCreadas    NotaDeRemision[] @relation("NotaCreadaPor")
+  notasActualizadas NotaDeRemision[] @relation("NotaActualizadaPor")
+  pagosRegistrados Pago[] @relation("PagoCreadoPor")
+  facturasCreadas Factura[] @relation("FacturaCreadaPor")
+  cortesGenerados CorteMensual[] @relation("CorteGeneradoPor")
+  auditLogs       AuditLog[] @relation("AuditLogUser")
+
+  @@map("users")
+}
+
+model Cliente {
+  id                String    @id @default(uuid()) @db.Uuid
+  nombreComercial   String    @map("nombre_comercial") @db.VarChar(200)
+  razonSocial       String?   @map("razon_social") @db.VarChar(200)
+  rfc               String?   @db.VarChar(13)
+  regimenFiscal     String?   @map("regimen_fiscal") @db.VarChar(100)
+  usoCfdi           String?   @map("uso_cfdi") @db.VarChar(10)
+  direccionCalle    String?   @map("direccion_calle") @db.VarChar(200)
+  direccionColonia  String?   @map("direccion_colonia") @db.VarChar(100)
+  direccionCiudad   String?   @map("direccion_ciudad") @db.VarChar(100)
+  direccionEstado   String?   @map("direccion_estado") @db.VarChar(100)
+  codigoPostal      String?   @map("codigo_postal") @db.VarChar(10)
+  telefono          String?   @db.VarChar(20)
+  email             String?   @db.VarChar(150)
+  contactoNombre    String?   @map("contacto_nombre") @db.VarChar(150)
+  diasCredito       Int       @default(0) @map("dias_credito")
+  limiteCredito     Decimal   @default(0) @db.Decimal(12,2) @map("limite_credito")
+  activo            Boolean   @default(true)
+  notas             String?   @db.Text
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  createdBy         String?   @map("created_by") @db.Uuid
+
+  creador           User?     @relation("ClienteCreadoPor", fields: [createdBy], references: [id])
+  notasDeRemision   NotaDeRemision[]
+
+  @@map("clientes")
+}
+
+model Producto {
+  id              String    @id @default(uuid()) @db.Uuid
+  nombre          String    @db.VarChar(200)
+  descripcion     String?   @db.Text
+  unidadMedida    UnidadMedida @map("unidad_medida")
+  precioBase      Decimal?  @db.Decimal(12,4) @map("precio_base")
+  activo          Boolean   @default(true)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  itemsNota       ItemNota[]
+
+  @@map("productos")
+}
+
+model NotaDeRemision {
+  id                String    @id @default(uuid()) @db.Uuid
+  folio             String    @unique @db.VarChar(20)
+  clienteId         String    @map("cliente_id") @db.Uuid
+  fechaEmision      DateTime  @db.Date @map("fecha_emision")
+  fechaVencimiento  DateTime? @db.Date @map("fecha_vencimiento")
+  estadoPago        EstadoPago @map("estado_pago")
+  subtotal          Decimal   @db.Decimal(12,2)
+  descuento         Decimal   @default(0) @db.Decimal(12,2)
+  total             Decimal   @db.Decimal(12,2)
+  totalPagado       Decimal   @default(0) @db.Decimal(12,2) @map("total_pagado")
+  // saldoPendiente is calculated/generated, Prisma doesn't fully support GENERATED ALWAYS AS natively across all DBs smoothly, we will handle this via logic/view or Prisma extensions, for now we map it as a normal decimal updated by logic.
+  saldoPendiente    Decimal   @default(0) @db.Decimal(12,2) @map("saldo_pendiente")
+  condicionesPago   String?   @db.Text @map("condiciones_pago")
+  observaciones     String?   @db.Text
+  firmadoPor        String?   @db.VarChar(200) @map("firmado_por")
+  entregadoPor      String?   @map("entregado_por") @db.Uuid
+  createdBy         String?   @map("created_by") @db.Uuid
+  updatedBy         String?   @map("updated_by") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  cliente           Cliente   @relation(fields: [clienteId], references: [id])
+  entregador        User?     @relation("NotaEntregadaPor", fields: [entregadoPor], references: [id])
+  creador           User?     @relation("NotaCreadaPor", fields: [createdBy], references: [id])
+  actualizador      User?     @relation("NotaActualizadaPor", fields: [updatedBy], references: [id])
+
+  items             ItemNota[]
+  pagos             Pago[]
+  facturas          NotaFactura[]
+
+  @@map("notas_de_remision")
+}
+
+model ItemNota {
+  id              String    @id @default(uuid()) @db.Uuid
+  notaId          String    @map("nota_id") @db.Uuid
+  productoId      String?   @map("producto_id") @db.Uuid
+  descripcion     String?   @db.VarChar(300)
+  cantidad        Decimal   @db.Decimal(12,4)
+  unidadMedida    String?   @db.VarChar(20) @map("unidad_medida")
+  precioUnitario  Decimal   @db.Decimal(12,4) @map("precio_unitario")
+  descuentoPct    Decimal   @default(0) @db.Decimal(5,2) @map("descuento_pct")
+  subtotal        Decimal   @db.Decimal(12,2)
+
+  nota            NotaDeRemision @relation(fields: [notaId], references: [id], onDelete: Cascade)
+  producto        Producto?      @relation(fields: [productoId], references: [id])
+
+  @@map("items_nota")
+}
+
+model Pago {
+  id              String    @id @default(uuid()) @db.Uuid
+  notaId          String    @map("nota_id") @db.Uuid
+  monto           Decimal   @db.Decimal(12,2)
+  fechaPago       DateTime  @db.Date @map("fecha_pago")
+  formaPago       FormaPago @map("forma_pago")
+  referencia      String?   @db.VarChar(100)
+  banco           String?   @db.VarChar(100)
+  notas           String?   @db.Text
+  createdBy       String?   @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  nota            NotaDeRemision @relation(fields: [notaId], references: [id], onDelete: Cascade)
+  creador         User?          @relation("PagoCreadoPor", fields: [createdBy], references: [id])
+
+  @@map("pagos")
+}
+
+model Factura {
+  id              String    @id @default(uuid()) @db.Uuid
+  folioFiscal     String    @unique @map("folio_fiscal") @db.VarChar(100)
+  serie           String    @db.VarChar(10)
+  folio           String    @db.VarChar(20)
+  fechaTimbrado   DateTime  @map("fecha_timbrado")
+  subtotal        Decimal?  @db.Decimal(12,2)
+  iva             Decimal?  @db.Decimal(12,2)
+  total           Decimal   @db.Decimal(12,2)
+  estatus         EstatusFactura
+  xmlUrl          String?   @map("xml_url") @db.Text
+  pdfUrl          String?   @map("pdf_url") @db.Text
+  createdBy       String?   @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  creador         User?     @relation("FacturaCreadaPor", fields: [createdBy], references: [id])
+  notas           NotaFactura[]
+
+  @@map("facturas")
+}
+
+model NotaFactura {
+  notaId          String    @map("nota_id") @db.Uuid
+  facturaId       String    @map("factura_id") @db.Uuid
+
+  nota            NotaDeRemision @relation(fields: [notaId], references: [id], onDelete: Cascade)
+  factura         Factura        @relation(fields: [facturaId], references: [id], onDelete: Cascade)
+
+  @@id([notaId, facturaId])
+  @@map("notas_facturas")
+}
+
+model CorteMensual {
+  id              String    @id @default(uuid()) @db.Uuid
+  anio            Int
+  mes             Int
+  fechaCorte      DateTime? @map("fecha_corte")
+  estado          EstadoCorte
+  totalVendido    Decimal?  @db.Decimal(12,2) @map("total_vendido")
+  totalCobrado    Decimal?  @db.Decimal(12,2) @map("total_cobrado")
+  totalPendiente  Decimal?  @db.Decimal(12,2) @map("total_pendiente")
+  notasEmitidas   Int?      @map("notas_emitidas")
+  notasPagadas    Int?      @map("notas_pagadas")
+  notasPendientes Int?      @map("notas_pendientes")
+  notasVencidas   Int?      @map("notas_vencidas")
+  notasCanceladas Int?      @map("notas_canceladas")
+  resumenJson     Json?     @map("resumen_json")
+  generadoPor     String?   @map("generado_por") @db.Uuid
+  pdfUrl          String?   @map("pdf_url") @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  generador       User?     @relation("CorteGeneradoPor", fields: [generadoPor], references: [id])
+
+  @@unique([anio, mes])
+  @@map("cortes_mensuales")
+}
+
+model AuditLog {
+  id              String    @id @default(uuid()) @db.Uuid
+  tabla           String?   @db.VarChar(50)
+  registroId      String?   @map("registro_id") @db.Uuid
+  accion          AccionAudit
+  datosAnteriores Json?     @map("datos_anteriores")
+  datosNuevos     Json?     @map("datos_nuevos")
+  usuarioId       String?   @map("usuario_id") @db.Uuid
+  ipAddress       String?   @map("ip_address") @db.VarChar(45)
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  usuario         User?     @relation("AuditLogUser", fields: [usuarioId], references: [id])
+
+  @@map("audit_logs")
+}
